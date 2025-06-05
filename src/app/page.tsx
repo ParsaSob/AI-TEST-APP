@@ -12,7 +12,7 @@ import { handleSendMessage } from "./actions";
 import { Skeleton } from "@/components/ui/skeleton";
 import { AlertCircle, Loader2, MessageSquareText } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import Image from "next/image";
 
@@ -106,7 +106,7 @@ export default function Home() {
       <main className="w-full max-w-2xl space-y-8">
         {!user ? (
           <div className="flex flex-col items-center justify-center p-10 bg-card rounded-xl shadow-xl border text-center">
-            <Image src="https://placehold.co/300x200.png" alt="AI illustration" width={300} height={200} className="rounded-lg mb-6 shadow-md" data-ai-hint="city night" />
+            <Image src="https://i.ebayimg.com/images/g/9FoAAOSw0dFcmo1c/s-l1200.jpg" alt="Batman illustration" width={300} height={200} className="rounded-lg mb-6 shadow-md" />
             <h2 className="text-2xl font-semibold mb-3 text-foreground font-headline">Welcome!</h2>
             <p className="text-muted-foreground mb-6">
               Sign in to get AI-powered suggestions and improvements for your messages.
@@ -138,7 +138,7 @@ export default function Home() {
                 </CardContent>
               </Card>
             )}
-
+            
             {isLoading && originalMessage && (
                <Card className="shadow-lg rounded-xl overflow-hidden border-accent">
                   <CardHeader className="bg-accent/20">
@@ -173,4 +173,3 @@ export default function Home() {
     </div>
   );
 }
-
