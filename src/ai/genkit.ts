@@ -1,10 +1,11 @@
 
 import {genkit} from 'genkit';
-// import {googleAI} from '@genkit-ai/googleai'; // Temporarily commented out
+import {googleAI} from '@genkit-ai/googleai';
 
 export const ai = genkit({
   plugins: [
-    // googleAI() // Temporarily commented out
+    googleAI()
   ],
-  // model: 'googleai/gemini-2.0-flash', // Temporarily commented out
+  model: 'googleai/gemini-1.5-flash-latest',
 });
+
