@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState } from "react";
@@ -9,8 +10,9 @@ import MessageForm from "@/components/MessageForm";
 import MessageDisplay from "@/components/MessageDisplay";
 import { handleSendMessage } from "./actions";
 import { Skeleton } from "@/components/ui/skeleton";
-import { AlertCircle, Bot } from "lucide-react";
+import { AlertCircle, Bot, Loader2, MessageSquareText } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import Image from "next/image";
 
