@@ -36,8 +36,8 @@ export default function Home() {
     }
     setIsLoading(true);
     setError(null);
-    setOriginalMessage(message); // Set original message for display immediately
-    setAiResponse(null); // Clear previous AI response
+    setOriginalMessage(message); 
+    setAiResponse(null); 
 
     const result = await handleSendMessage(user.uid, message);
 
@@ -98,7 +98,7 @@ export default function Home() {
       <main className="w-full max-w-2xl space-y-8">
         {!user ? (
           <div className="flex flex-col items-center justify-center p-10 bg-card rounded-xl shadow-xl border text-center">
-            <Image src="https://placehold.co/300x200.png" alt="AI illustration" width={300} height={200} className="rounded-lg mb-6 shadow-md" data-ai-hint="abstract tech" />
+            <Image src="https://placehold.co/300x200.png" alt="AI illustration" width={300} height={200} className="rounded-lg mb-6 shadow-md" data-ai-hint="gothic city" />
             <h2 className="text-2xl font-semibold mb-3 text-foreground font-headline">Welcome!</h2>
             <p className="text-muted-foreground mb-6">
               Sign in to get AI-powered suggestions and improvements for your messages.
@@ -117,7 +117,7 @@ export default function Home() {
               </Alert>
             )}
 
-            {(originalMessage || aiResponse) && (
+            {(originalMessage || aiResponse) && !isLoading && (
                <MessageDisplay 
                 originalMessage={originalMessage}
                 aiEditedMessage={aiResponse?.editedMessage}
