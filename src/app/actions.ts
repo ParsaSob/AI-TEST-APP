@@ -1,8 +1,7 @@
-
 "use server";
 
 import { db } from "@/lib/firebase";
-import { collection, addDoc, serverTimestamp, type DocumentReference } from "firebase/firestore";
+import { collection, addDoc, serverTimestamp, type DocumentReference, type DocumentData } from "firebase/firestore";
 
 interface HandleSendMessageResult {
   success: boolean;
@@ -14,20 +13,29 @@ export async function handleSendMessage(
   userId: string,
   originalMessage: string
 ): Promise<HandleSendMessageResult> {
+  if (!db) {
+    return { success: false, error: "Database not initialized." };
+  }
+
   if (!userId) {
     return { success: false, error: "User not authenticated." };
   }
+
   if (!originalMessage.trim()) {
     return { success: false, error: "Message cannot be empty." };
   }
 
+  if (originalMessage.length > 1000) {
+    return { success: false, error: "Message is too long. Maximum length is 1000 characters." };
+  }
+
+  // The UUID validation was removed from here as Firebase UIDs are not necessarily UUIDs.
+
   try {
-    // The AI response will be added by the Firebase Function
-    const docRef: DocumentReference = await addDoc(collection(db, "user_messages"), {
+    const docRef: DocumentReference<DocumentData> = await addDoc(collection(db, "user_messages"), {
       user_id: userId,
-      message_text: originalMessage,
+      message_text: originalMessage.trim(), // پاکسازی پیام
       timestamp: serverTimestamp(),
-      // response_text will be populated by the Firebase Function
     });
 
     return {
@@ -36,7 +44,6 @@ export async function handleSendMessage(
     };
   } catch (error) {
     console.error("Error saving message to Firestore:", error);
-    const errorMessage = error instanceof Error ? error.message : "An unknown error occurred while saving your message.";
-    return { success: false, error: `Failed to save message: ${errorMessage}` };
+    return { success: false, error: "We couldn't save your message. Please try again later." };
   }
 }
