@@ -1,3 +1,4 @@
+
 "use client";
 
 import { GoogleAuthProvider, signInWithPopup } from "firebase/auth";
@@ -17,13 +18,28 @@ export default function SignInButton() {
         title: "Signed In",
         description: "Successfully signed in with Google.",
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error signing in with Google: ", error);
-      toast({
-        title: "Sign In Failed",
-        description: "Could not sign in with Google. Please try again.",
-        variant: "destructive",
-      });
+      if (error.code === 'auth/popup-closed-by-user') {
+        toast({
+          title: "Sign In Cancelled",
+          description: "The sign-in process was cancelled.",
+          variant: "default", 
+        });
+      } else if (error.code === 'auth/cancelled-popup-request') {
+        toast({
+          title: "Sign In Cancelled",
+          description: "Multiple sign-in attempts detected. Previous attempt cancelled.",
+          variant: "default",
+        });
+      }
+      else {
+        toast({
+          title: "Sign In Failed",
+          description: error.message || "Could not sign in with Google. Please try again.",
+          variant: "destructive",
+        });
+      }
     }
   };
 
