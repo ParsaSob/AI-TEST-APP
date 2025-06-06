@@ -1,46 +1,42 @@
 
 "use server";
 
-import { generateAiResponse, type GenerateAiResponseOutput } from "@/ai/flows/generate-ai-response-flow";
 import { db } from "@/lib/firebase";
-import { collection, addDoc, serverTimestamp } from "firebase/firestore";
+import { collection, addDoc, serverTimestamp, type DocumentReference } from "firebase/firestore";
 
-interface AIResponseData {
-  aiResponse: string;
+interface HandleSendMessageResult {
+  success: boolean;
+  docId?: string;
+  error?: string;
 }
 
 export async function handleSendMessage(
   userId: string,
   originalMessage: string
-): Promise<AIResponseData | { error: string }> {
+): Promise<HandleSendMessageResult> {
   if (!userId) {
-    return { error: "User not authenticated." };
+    return { success: false, error: "User not authenticated." };
   }
   if (!originalMessage.trim()) {
-    return { error: "Message cannot be empty." };
+    return { success: false, error: "Message cannot be empty." };
   }
 
   try {
-    const aiResult: GenerateAiResponseOutput = await generateAiResponse({ message: originalMessage });
-
-    if (!aiResult || !aiResult.response) {
-      return { error: "AI failed to generate a response." };
-    }
-    
-    await addDoc(collection(db, "user_messages"), { // Changed collection name
-      user_id: userId,                            // Changed field name
-      message_text: originalMessage,              // Changed field name
-      response_text: aiResult.response,           // Changed field name
+    // The AI response will be added by the Firebase Function
+    const docRef: DocumentReference = await addDoc(collection(db, "user_messages"), {
+      user_id: userId,
+      message_text: originalMessage,
       timestamp: serverTimestamp(),
+      // response_text will be populated by the Firebase Function
     });
 
     return {
-      aiResponse: aiResult.response,
+      success: true,
+      docId: docRef.id,
     };
   } catch (error) {
-    console.error("Error handling message:", error);
-    const errorMessage = error instanceof Error ? error.message : "An unknown error occurred while processing your message.";
-    return { error: `Failed to process message: ${errorMessage}` };
+    console.error("Error saving message to Firestore:", error);
+    const errorMessage = error instanceof Error ? error.message : "An unknown error occurred while saving your message.";
+    return { success: false, error: `Failed to save message: ${errorMessage}` };
   }
 }
-

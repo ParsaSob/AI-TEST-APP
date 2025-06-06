@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import SignInButton from "@/components/auth/SignInButton";
 import SignOutButton from "@/components/auth/SignOutButton";
@@ -10,11 +10,13 @@ import MessageForm from "@/components/MessageForm";
 import MessageDisplay from "@/components/MessageDisplay";
 import { handleSendMessage } from "./actions";
 import { Skeleton } from "@/components/ui/skeleton";
-import { AlertCircle, Loader2, MessageSquareText, Bot } from "lucide-react";
+import { AlertCircle, Loader2, MessageSquareText } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import Image from "next/image";
+import { doc, onSnapshot, type Unsubscribe } from "firebase/firestore";
+import { db } from "@/lib/firebase";
 
 interface AIResponseState {
   aiResponse?: string;
@@ -27,28 +29,79 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
+  const [activeMessageId, setActiveMessageId] = useState<string | null>(null);
+
+  useEffect(() => {
+    let unsubscribe: Unsubscribe | undefined;
+
+    if (activeMessageId && user) {
+      setIsLoading(true); // Start loading when we have an active message ID to listen to
+      const docRef = doc(db, "user_messages", activeMessageId);
+      unsubscribe = onSnapshot(
+        docRef,
+        (docSnap) => {
+          if (docSnap.exists()) {
+            const data = docSnap.data();
+            if (data.response_text) {
+              setAiServiceResponse({ aiResponse: data.response_text });
+              setError(null); // Clear previous errors
+              setIsLoading(false); // Stop loading once response is received
+              setActiveMessageId(null); // Clear active message ID as we got the response
+              toast({ title: "Success", description: "AI response received." });
+            } else if (data.error_message) { // Optional: Handle errors from Firebase Function
+              setError(data.error_message);
+              setAiServiceResponse(null);
+              setIsLoading(false);
+              setActiveMessageId(null);
+              toast({ title: "AI Error", description: data.error_message, variant: "destructive" });
+            }
+            // If response_text is not yet there, isLoading remains true
+          } else {
+            setError("Message document not found after sending.");
+            setIsLoading(false);
+            setActiveMessageId(null);
+          }
+        },
+        (err) => {
+          console.error("Error listening to message document:", err);
+          setError("Failed to listen for AI response.");
+          setIsLoading(false);
+          setActiveMessageId(null);
+          toast({ title: "Listener Error", description: "Could not listen for AI response.", variant: "destructive" });
+        }
+      );
+    }
+
+    return () => {
+      if (unsubscribe) {
+        unsubscribe();
+      }
+    };
+  }, [activeMessageId, user, toast]);
 
   const submitMessage = async (message: string) => {
     if (!user) {
       toast({ title: "Authentication Error", description: "You must be signed in to send a message.", variant: "destructive" });
       return;
     }
-    setIsLoading(true);
-    setError(null);
+    
+    // Clear previous states before new submission
     setOriginalMessage(message);
-    setAiServiceResponse(null); // Clear previous AI response
+    setAiServiceResponse(null); 
+    setError(null);
+    setActiveMessageId(null); // Clear any previous active listener
+    setIsLoading(true); // Set loading true immediately on submit
 
     const result = await handleSendMessage(user.uid, message);
 
-    if ("error" in result) {
-      setError(result.error);
-      toast({ title: "Error", description: result.error, variant: "destructive" });
-      setAiServiceResponse(null);
+    if (result.success && result.docId) {
+      setActiveMessageId(result.docId);
+      // isLoading remains true, listener will set it to false or handle error
     } else {
-      setAiServiceResponse({ aiResponse: result.aiResponse });
-      toast({ title: "Success", description: "AI response received." });
+      setError(result.error || "Failed to send message.");
+      toast({ title: "Error", description: result.error || "Could not send message.", variant: "destructive" });
+      setIsLoading(false); // Stop loading if initial send fails
     }
-    setIsLoading(false);
   };
 
   if (authLoading) {
@@ -81,7 +134,7 @@ export default function Home() {
     <div className="flex flex-col items-center min-h-screen p-4 sm:p-6 md:p-8 bg-background font-body selection:bg-primary/20 selection:text-primary-foreground">
       <header className="w-full max-w-2xl mb-8 flex justify-between items-center">
         <div className="flex items-center space-x-3">
-          <svg
+           <svg
             xmlns="http://www.w3.org/2000/svg"
             viewBox="0 0 24 24"
             fill="currentColor"
@@ -105,7 +158,7 @@ export default function Home() {
       <main className="w-full max-w-2xl space-y-8">
         {!user ? (
           <div className="flex flex-col items-center justify-center p-10 bg-card rounded-xl shadow-xl border text-center">
-            <Image src="https://i.ebayimg.com/images/g/9FoAAOSw0dFcmo1c/s-l1200.jpg" alt="Batman illustration" width={300} height={200} className="rounded-lg mb-6 shadow-md" data-ai-hint="batman illustration" />
+            <Image src="https://i.ebayimg.com/images/g/9FoAAOSw0dFcmo1c/s-l1200.jpg" alt="Batman illustration" width={300} height={200} className="rounded-lg mb-6 shadow-md" data-ai-hint="batman night" />
             <h2 className="text-2xl font-semibold mb-3 text-foreground font-headline">Welcome!</h2>
             <p className="text-muted-foreground mb-6">
               Sign in to get AI-powered responses for your messages.
@@ -116,7 +169,7 @@ export default function Home() {
           <>
             <MessageForm userId={user.uid} onSubmit={submitMessage} isLoading={isLoading} />
             
-            {error && (
+            {error && !isLoading && ( // Only show general error if not loading
               <Alert variant="destructive" className="shadow-md">
                 <AlertCircle className="h-4 w-4" />
                 <AlertTitle>Error</AlertTitle>
@@ -124,7 +177,8 @@ export default function Home() {
               </Alert>
             )}
 
-            {isLoading && originalMessage && !aiServiceResponse && (
+            {/* Display Original Message when it's sent and we are waiting */}
+            {originalMessage && isLoading && (
               <Card className="shadow-lg rounded-xl overflow-hidden">
                 <CardHeader className="bg-secondary/50">
                   <CardTitle className="flex items-center text-lg font-headline text-secondary-foreground">
@@ -138,7 +192,8 @@ export default function Home() {
               </Card>
             )}
             
-            {isLoading && originalMessage && (
+            {/* Display AI Thinking card */}
+            {isLoading && (
                <Card className="shadow-lg rounded-xl overflow-hidden border-accent">
                   <CardHeader className="bg-accent/20">
                     <CardTitle className="flex items-center text-lg font-headline text-accent-foreground">
@@ -154,15 +209,16 @@ export default function Home() {
                 </Card>
             )}
             
-            {originalMessage && !isLoading && aiServiceResponse?.aiResponse && (
+            {/* Display MessageDisplay component when AI response is available and not loading */}
+            {originalMessage && aiServiceResponse?.aiResponse && !isLoading && (
                <MessageDisplay 
                 originalMessage={originalMessage}
                 aiResponse={aiServiceResponse.aiResponse}
               />
             )}
 
-            {/* Display original message only if not loading and no AI response yet, but message was sent */}
-            {originalMessage && !isLoading && !aiServiceResponse?.aiResponse && !error && (
+            {/* Display original message only if not loading and no AI response yet, but message was sent AND there's no error */}
+            {originalMessage && !aiServiceResponse?.aiResponse && !isLoading && !error && (
                  <Card className="shadow-lg rounded-xl overflow-hidden">
                     <CardHeader className="bg-secondary/50">
                         <CardTitle className="flex items-center text-lg font-headline text-secondary-foreground">
