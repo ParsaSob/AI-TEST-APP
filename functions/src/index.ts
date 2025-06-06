@@ -1,6 +1,6 @@
-const functions = require("firebase-functions");
-const admin = require("firebase-admin");
-const axios = require("axios");
+import * as functions from "firebase-functions";
+import * as admin from "firebase-admin";
+import axios from "axios";
 
 admin.initializeApp();
 
@@ -37,7 +37,7 @@ exports.processMessage = functions.firestore
         response_text: aiResponse
       });
       functions.logger.info(`[docId: ${docId}] Successfully updated Firestore with AI response.`);
-    } catch (error) {
+    } catch (error: any) {
       functions.logger.error(`[docId: ${docId}] Error processing message and getting AI response:`, error);
       const errorMessage = error instanceof Error ? error.message : String(error);
       try {
@@ -51,7 +51,7 @@ exports.processMessage = functions.firestore
     }
   });
 
-async function getAIResponse(message, docIdForLogging) {
+async function getAIResponse(message: string, docIdForLogging: string): Promise<string> {
   const apiKey = "AIzaSyD7mn3QR4Bi_vqH7XcYqSImpB_zHLZlefQ"; // Security risk: Hardcoded API key
   const url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent";
   
@@ -67,8 +67,6 @@ async function getAIResponse(message, docIdForLogging) {
     );
 
     functions.logger.info(`[docId: ${docIdForLogging}] Raw AI API response status: ${response.status}`);
-    // Avoid logging full response data by default in production if it's too verbose or contains sensitive info
-    // functions.logger.debug(`[docId: ${docIdForLogging}] Raw AI API response data:`, response.data);
 
     if (!response.data) {
         functions.logger.error(`[docId: ${docIdForLogging}] AI response data is undefined.`);
@@ -94,7 +92,7 @@ async function getAIResponse(message, docIdForLogging) {
     functions.logger.info(`[docId: ${docIdForLogging}] Extracted AI text: "${aiText}"`);
     return aiText;
 
-  } catch (error) {
+  } catch (error: any) {
     functions.logger.error(`[docId: ${docIdForLogging}] Error during AI API call:`, error.isAxiosError ? { message: error.message, code: error.code, config: error.config ? { url: error.config.url, method: error.config.method, timeout: error.config.timeout } : undefined, response: error.response ? { status: error.response.status, data: error.response.data } : undefined } : error);
     if (axios.isAxiosError(error)) {
       let detail = `AI API request failed: ${error.message}.`;
@@ -105,7 +103,6 @@ async function getAIResponse(message, docIdForLogging) {
       }
       throw new Error(detail);
     }
-    // Re-throw if it's not an Axios error but something else during the process
     throw new Error(`An unexpected error occurred in getAIResponse: ${error.message || String(error)}`);
   }
 }
