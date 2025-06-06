@@ -15,8 +15,6 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import Image from "next/image";
-import { doc, onSnapshot, type Unsubscribe } from "firebase/firestore";
-import { db } from "@/lib/firebase";
 
 interface AIResponseState {
   aiResponse?: string;
@@ -29,85 +27,12 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
-  const [activeMessageId, setActiveMessageId] = useState<string | null>(null);
 
   const resetStateForNewMessage = useCallback(() => {
     console.log("[PageReset] Resetting state for new message.");
     setAiServiceResponse(null);
     setError(null);
-    setActiveMessageId(null); 
   }, []);
-
-  useEffect(() => {
-    let unsubscribe: Unsubscribe | undefined;
-
-    if (activeMessageId && user && db) {
-      console.log(`[PageEffect] Attempting to set up Firestore listener for doc: user_messages/${activeMessageId}`);
-      const docRef = doc(db, "user_messages", activeMessageId);
-      unsubscribe = onSnapshot(
-        docRef,
-        (docSnap) => {
-          console.log(`[PageEffect] Snapshot received for user_messages/${activeMessageId}. Exists: ${docSnap.exists()}`);
-          if (docSnap.exists()) {
-            const data = docSnap.data();
-            console.log("[PageEffect] Document data:", JSON.stringify(data, null, 2));
-            
-            if (data.message_text && !originalMessage) {
-                console.log("[PageEffect] Original message was not set locally, setting from snapshot.");
-                setOriginalMessage(data.message_text);
-            }
-
-            if (data.response_text) {
-              console.log("[PageEffect] AI response_text found:", data.response_text);
-              setAiServiceResponse({ aiResponse: data.response_text });
-              setError(null);
-              setIsLoading(false);
-              setActiveMessageId(null); 
-              toast({ title: "Success", description: "AI response received." });
-            } else if (data.error_message) {
-              console.warn("[PageEffect] AI error_message found:", data.error_message);
-              setError(data.error_message);
-              setAiServiceResponse(null);
-              setIsLoading(false);
-              setActiveMessageId(null); 
-              toast({ title: "AI Error", description: data.error_message, variant: "destructive" });
-            } else {
-              console.log("[PageEffect] Document exists but no response_text or error_message yet. Still loading/waiting for Function.");
-              if(!isLoading) {
-                console.log("[PageEffect] isLoading was false, setting to true as we are waiting for function.");
-                setIsLoading(true);
-              }
-            }
-          } else {
-            console.warn(`[PageEffect] Message document user_messages/${activeMessageId} not found after sending. This could mean it was deleted or listener is on wrong ID.`);
-            setError("Message document not found. It might have been deleted or there was an issue.");
-            setAiServiceResponse(null);
-            setIsLoading(false);
-            setActiveMessageId(null); 
-          }
-        },
-        (err) => {
-          console.error(`[PageEffect] Error listening to Firestore document user_messages/${activeMessageId}:`, err);
-          setError("Failed to listen for AI response due to a Firestore listener error.");
-          setAiServiceResponse(null);
-          setIsLoading(false);
-          setActiveMessageId(null); 
-          toast({ title: "Listener Error", description: "Could not listen for AI response updates.", variant: "destructive" });
-        }
-      );
-    } else {
-      if (activeMessageId) { 
-         console.log(`[PageEffect] Conditions not met to set up listener for activeMessageId: ${activeMessageId}. User: ${!!user}, DB: ${!!db}`);
-      }
-    }
-
-    return () => {
-      if (unsubscribe) {
-        console.log(`[PageEffect] Unsubscribing from Firestore listener for user_messages/${activeMessageId} (or previous activeMessageId if it changed).`);
-        unsubscribe();
-      }
-    };
-  }, [activeMessageId, user, toast, db, isLoading, originalMessage]); // Added db, isLoading, originalMessage to deps for completeness, though their change leading to re-subscription needs care.
 
   const submitMessage = async (message: string) => {
     if (!user) {
@@ -116,35 +41,37 @@ export default function Home() {
     }
 
     console.log("[PageSubmit] submitMessage called with message:", message);
-    resetStateForNewMessage(); 
-    setOriginalMessage(message); 
-    setIsLoading(true); 
+    resetStateForNewMessage();
+    setOriginalMessage(message);
+    setIsLoading(true);
     console.log("[PageSubmit] State reset. isLoading is now true.");
 
     try {
-      console.log("[PageSubmit] Calling handleSendMessage action...");
+      console.log("[PageSubmit] Calling handleSendMessage action (Genkit direct)...");
       const result = await handleSendMessage(user.uid, message);
       console.log("[PageSubmit] handleSendMessage action result:", result);
 
-      if (result && result.success && result.docId) {
-        console.log(`[PageSubmit] handleSendMessage successful. Will now listen to docId: ${result.docId}`);
-        setActiveMessageId(result.docId);
-        // isLoading remains true, listener effect will handle it or errors.
+      if (result && result.success && result.aiResponse) {
+        console.log(`[PageSubmit] handleSendMessage successful. AI Response: ${result.aiResponse}`);
+        setAiServiceResponse({ aiResponse: result.aiResponse });
+        setError(null);
+        toast({ title: "Success", description: "AI response received." });
       } else {
-        const errorMessage = result?.error || "Failed to send message. Unexpected response from server action.";
+        const errorMessage = result?.error || "Failed to get AI response. Unexpected response from server action.";
         console.error("[PageSubmit] handleSendMessage failed or returned unexpected result:", errorMessage, result);
         setError(errorMessage);
-        toast({ title: "Message Send Error", description: errorMessage, variant: "destructive" });
-        setIsLoading(false); 
-        console.log("[PageSubmit] Error from handleSendMessage. isLoading is now false.");
+        setAiServiceResponse(null);
+        toast({ title: "AI Error", description: errorMessage, variant: "destructive" });
       }
     } catch (e: any) {
       console.error("[PageSubmit] Critical error during handleSendMessage call:", e);
       const errorMessage = e.message || "An unexpected client-side error occurred while sending the message.";
       setError(errorMessage);
+      setAiServiceResponse(null);
       toast({ title: "Submission Error", description: errorMessage, variant: "destructive" });
-      setIsLoading(false); 
-      console.log("[PageSubmit] Exception during handleSendMessage. isLoading is now false.");
+    } finally {
+      setIsLoading(false);
+      console.log("[PageSubmit] isLoading is now false.");
     }
   };
   
@@ -183,7 +110,7 @@ export default function Home() {
             viewBox="0 0 24 24"
             fill="currentColor"
             className="h-10 w-10 text-primary"
-            aria-label="Batman Symbol"
+            aria-label="App Logo"
           >
             <path d="M12 2.032c-1.431.001-2.814.282-4.095.799C5.03 3.87 3.431 5.62 2.268 7.895c-.995 1.94-1.25 3.956-1.138 5.897.126 2.153.833 4.026 2.033 5.59.189.246.4.485.62.714.441.459.923.921 1.422 1.365 1.757 1.563 3.678 2.444 5.792 2.502h.001c2.115-.058 4.035-.939 5.792-2.502.499-.444.981-.906 1.422-1.365.22-.229.431-.468.62-.714 1.2-1.564 1.907-3.437 2.033-5.59.112-1.941-.143-3.957-1.138-5.897C20.569 5.62 18.97 3.87 16.095 2.831c-1.281-.517-2.664-.798-4.095-.799zm-.001 1.93c1.101 0 2.15.21 3.135.616.928.39 1.787.927 2.51 1.585.095.085.186.176.271.269.431.462.789.972 1.061 1.519.511 1.02.773 2.119.773 3.216 0 .834-.132 1.734-.388 2.585-.044.147-.09.293-.138.438-.386 1.162-1.044 2.222-1.888 3.126a9.013 9.013 0 0 1-1.24 1.21c-.014.012-.027.024-.041.036-.06.054-.12.107-.181.159-.217.185-.438.366-.662.54-.872.677-1.815 1.173-2.823 1.453-.126.035-.252.068-.379.099a4.737 4.737 0 0 1-1.04.158h-.003a4.738 4.738 0 0 1-1.04-.158c-.127-.031-.253-.064-.379-.099-.998-.28-1.941-.776-2.823-1.453-.224-.174-.445-.355-.662-.54-.061-.052-.121-.105-.181-.159-.014-.012-.027-.024-.041-.036a9.013 9.013 0 0 1-1.24-1.21c-.844-.904-1.502-1.964-1.888-3.126-.048-.145-.094-.291-.138-.438-.256-.851-.388-1.751-.388-2.585 0-1.097.262-2.196.773-3.216.272-.547.63-1.057 1.061-1.519.085-.093.176-.184.271-.269.723-.658 1.582-1.195 2.51-1.585.985-.406 2.034-.616 3.135-.616z" />
           </svg>
@@ -202,7 +129,7 @@ export default function Home() {
       <main className="w-full max-w-2xl space-y-8">
         {!user ? (
           <div className="flex flex-col items-center justify-center p-10 bg-card rounded-xl shadow-xl border text-center">
-            <Image src="https://i.ebayimg.com/images/g/9FoAAOSw0dFcmo1c/s-l1200.jpg" alt="Batman illustration" width={300} height={200} className="rounded-lg mb-6 shadow-md" data-ai-hint="batman night" />
+            <Image src="https://placehold.co/300x200.png" alt="Welcome illustration" width={300} height={200} className="rounded-lg mb-6 shadow-md" data-ai-hint="welcome abstract" />
             <h2 className="text-2xl font-semibold mb-3 text-foreground font-headline">Welcome!</h2>
             <p className="text-muted-foreground mb-6">
               Sign in to get AI-powered responses for your messages.
