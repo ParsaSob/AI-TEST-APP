@@ -15,6 +15,21 @@ export async function handleSendMessage(
   userId: string,
   originalMessage: string
 ): Promise<HandleSendMessageResult> {
+  // Diagnostic log for GEMINI_API_KEY
+  if (typeof process !== 'undefined' && process.env) {
+    if (process.env.GEMINI_API_KEY) {
+      console.log("[Action] GEMINI_API_KEY is SET. Length:", process.env.GEMINI_API_KEY.length);
+    } else if (process.env.GOOGLE_API_KEY) {
+      console.log("[Action] GOOGLE_API_KEY is SET. Length:", process.env.GOOGLE_API_KEY.length);
+    }
+    else {
+      console.error("[Action] NEITHER GEMINI_API_KEY NOR GOOGLE_API_KEY IS SET in process.env.");
+    }
+  } else {
+    console.error("[Action] process.env is not available or process is undefined.");
+  }
+
+
   console.log("[Action] handleSendMessage (Genkit direct) called with userId:", userId, "Message:", originalMessage);
 
   if (!originalMessage || !originalMessage.trim()) {
