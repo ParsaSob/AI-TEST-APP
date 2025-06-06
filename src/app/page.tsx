@@ -103,7 +103,7 @@ export default function Home() {
 
   return (
     <div className="flex flex-col items-center min-h-screen p-4 sm:p-6 md:p-8 bg-background font-body selection:bg-primary/20 selection:text-primary-foreground">
-      <header className="w-full max-w-2xl mb-8 grid grid-cols-3 items-center">
+      <header className="w-full max-w-2xl mb-8 grid grid-cols-3 items-start">
         <div className="flex justify-start">
           {/* This div is intentionally left empty to balance the layout when user info is present on the right. */}
         </div>
@@ -123,7 +123,7 @@ export default function Home() {
         </div>
         <div className="flex justify-end col-start-3">
           {user && (
-            <div className="flex items-center space-x-4">
+            <div className="flex items-start space-x-4"> {/* Changed items-center to items-start */}
               <UserAvatar user={user} />
               <SignOutButton />
             </div>
