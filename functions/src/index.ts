@@ -6,7 +6,7 @@ admin.initializeApp();
 
 exports.processMessage = functions.firestore
   .document("user_messages/{docId}")
-  .onCreate(async (snap, context) => {
+  .onCreate(async (snap: functions.firestore.QueryDocumentSnapshot, context: functions.EventContext<{ docId: string }>) => {
     const docId = context.params.docId;
     functions.logger.info(`[docId: ${docId}] Processing new message.`);
 
@@ -20,10 +20,10 @@ exports.processMessage = functions.firestore
     }
 
     const messageText = data.message_text;
-    if (!messageText) {
-      functions.logger.error(`[docId: ${docId}] message_text is missing in document data.`, { data });
+    if (typeof messageText !== 'string' || !messageText.trim()) {
+      functions.logger.error(`[docId: ${docId}] message_text is missing, not a string, or empty in document data.`, { data });
       try {
-        await snap.ref.update({ error_message: "Message text was missing in document." });
+        await snap.ref.update({ error_message: "Message text was missing, invalid, or empty in document." });
       } catch (e) { functions.logger.error(`[docId: ${docId}] Failed to write 'message_text missing' error to Firestore`, e); }
       return;
     }
@@ -34,7 +34,8 @@ exports.processMessage = functions.firestore
       const aiResponse = await getAIResponse(messageText, docId);
       functions.logger.info(`[docId: ${docId}] Received AI response: "${aiResponse}"`);
       await snap.ref.update({
-        response_text: aiResponse
+        response_text: aiResponse,
+        error_message: admin.firestore.FieldValue.delete() // Remove error message if successful
       });
       functions.logger.info(`[docId: ${docId}] Successfully updated Firestore with AI response.`);
     } catch (error: any) {
