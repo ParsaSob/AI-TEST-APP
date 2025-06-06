@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import SignInButton from "@/components/auth/SignInButton";
 import SignOutButton from "@/components/auth/SignOutButton";
@@ -31,87 +31,115 @@ export default function Home() {
   const { toast } = useToast();
   const [activeMessageId, setActiveMessageId] = useState<string | null>(null);
 
+  const resetStateForNewMessage = useCallback(() => {
+    setAiServiceResponse(null);
+    setError(null);
+    setActiveMessageId(null); // Clear previous active message ID
+  }, []);
+
   useEffect(() => {
     let unsubscribe: Unsubscribe | undefined;
 
     if (activeMessageId && user && db) {
-      setIsLoading(true); 
+      console.log(`[PageEffect] Listening to Firestore doc: user_messages/${activeMessageId}`);
+      setIsLoading(true); // Ensure loading is true when listener is active
       const docRef = doc(db, "user_messages", activeMessageId);
       unsubscribe = onSnapshot(
         docRef,
         (docSnap) => {
+          console.log(`[PageEffect] Snapshot received for user_messages/${activeMessageId}. Exists: ${docSnap.exists()}`);
           if (docSnap.exists()) {
             const data = docSnap.data();
+            console.log("[PageEffect] Document data:", data);
+            // Ensure originalMessage is up-to-date from the snapshot if needed,
+            // though it should primarily be set by submitMessage
+            setOriginalMessage(data.message_text || originalMessage);
+
             if (data.response_text) {
+              console.log("[PageEffect] AI response_text found:", data.response_text);
               setAiServiceResponse({ aiResponse: data.response_text });
-              setOriginalMessage(data.message_text || originalMessage); // Ensure original message is also loaded
-              setError(null); 
-              setIsLoading(false); 
-              setActiveMessageId(null); 
+              setError(null);
+              setIsLoading(false);
+              setActiveMessageId(null); // Stop listening for this message
               toast({ title: "Success", description: "AI response received." });
-            } else if (data.error_message) { 
+            } else if (data.error_message) {
+              console.warn("[PageEffect] AI error_message found:", data.error_message);
               setError(data.error_message);
-              setOriginalMessage(data.message_text || originalMessage);
               setAiServiceResponse(null);
               setIsLoading(false);
-              setActiveMessageId(null);
+              setActiveMessageId(null); // Stop listening for this message
               toast({ title: "AI Error", description: data.error_message, variant: "destructive" });
+            } else {
+              console.log("[PageEffect] Document exists but no response_text or error_message yet. Still loading.");
+              // If neither is present, isLoading remains true, waiting for Function update
             }
           } else {
-            setError("Message document not found after sending.");
+            console.warn(`[PageEffect] Message document user_messages/${activeMessageId} not found after sending.`);
+            setError("Message document not found after sending. It might have been deleted or the ID is incorrect.");
+            setAiServiceResponse(null);
             setIsLoading(false);
-            setActiveMessageId(null);
+            setActiveMessageId(null); // Stop listening
           }
         },
         (err) => {
-          console.error("Error listening to message document:", err);
-          setError("Failed to listen for AI response.");
+          console.error(`[PageEffect] Error listening to Firestore document user_messages/${activeMessageId}:`, err);
+          setError("Failed to listen for AI response due to a listener error.");
+          setAiServiceResponse(null);
           setIsLoading(false);
-          setActiveMessageId(null);
-          toast({ title: "Listener Error", description: "Could not listen for AI response.", variant: "destructive" });
+          setActiveMessageId(null); // Stop listening
+          toast({ title: "Listener Error", description: "Could not listen for AI response updates.", variant: "destructive" });
         }
       );
+    } else {
+      if (activeMessageId) {
+         console.log("[PageEffect] Not attaching listener because user or db is missing, or activeMessageId is null after trying to set.");
+      }
     }
 
     return () => {
       if (unsubscribe) {
+        console.log(`[PageEffect] Unsubscribing from Firestore listener for user_messages/${activeMessageId}`);
         unsubscribe();
       }
     };
-  }, [activeMessageId, user, toast, db, originalMessage]);
+  }, [activeMessageId, user, db, toast, originalMessage]); // originalMessage is included because it's used in setOriginalMessage, can be optimized if strictly not needed
 
   const submitMessage = async (message: string) => {
     if (!user) {
       toast({ title: "Authentication Error", description: "You must be signed in to send a message.", variant: "destructive" });
       return;
     }
-    
-    setOriginalMessage(message);
-    setAiServiceResponse(null); 
-    setError(null);
-    setActiveMessageId(null);
-    setIsLoading(true);
+
+    console.log("[PageSubmit] submitMessage called with message:", message);
+    resetStateForNewMessage();
+    setOriginalMessage(message); // Set the current original message
+    setIsLoading(true); // Set loading to true before async operation
 
     try {
+      console.log("[PageSubmit] Calling handleSendMessage action...");
       const result = await handleSendMessage(user.uid, message);
+      console.log("[PageSubmit] handleSendMessage result:", result);
 
       if (result && result.success && result.docId) {
+        console.log(`[PageSubmit] handleSendMessage successful. Setting activeMessageId to: ${result.docId}`);
         setActiveMessageId(result.docId);
+        // isLoading remains true, useEffect will handle further state based on listener
       } else {
-        const errorMessage = result?.error || "Failed to send message. Unexpected response from server.";
+        const errorMessage = result?.error || "Failed to send message. Unexpected response from server action.";
+        console.error("[PageSubmit] handleSendMessage failed or returned unexpected result:", errorMessage, result);
         setError(errorMessage);
-        toast({ title: "Error", description: errorMessage, variant: "destructive" });
-        setIsLoading(false); 
+        toast({ title: "Message Send Error", description: errorMessage, variant: "destructive" });
+        setIsLoading(false); // Crucial: set isLoading to false on failure
       }
     } catch (e: any) {
-      console.error("Error in submitMessage calling handleSendMessage:", e);
-      const errorMessage = e.message || "An unexpected error occurred while sending the message.";
+      console.error("[PageSubmit] Critical error calling handleSendMessage:", e);
+      const errorMessage = e.message || "An unexpected client-side error occurred while sending the message.";
       setError(errorMessage);
       toast({ title: "Submission Error", description: errorMessage, variant: "destructive" });
-      setIsLoading(false);
+      setIsLoading(false); // Crucial: set isLoading to false on critical failure
     }
   };
-
+  
   if (authLoading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen p-4 bg-background">
@@ -185,7 +213,8 @@ export default function Home() {
               </Alert>
             )}
             
-            {originalMessage && isLoading && (
+            {/* Display original message only if it exists and we are not in an error state *after* submission failed */}
+            {originalMessage && !error && (
               <Card className="shadow-lg rounded-xl overflow-hidden">
                 <CardHeader className="bg-secondary/50">
                   <CardTitle className="flex items-center text-lg font-headline text-secondary-foreground">
@@ -215,25 +244,11 @@ export default function Home() {
                 </Card>
             )}
             
-            {originalMessage && aiServiceResponse?.aiResponse && !isLoading && (
-               <MessageDisplay 
-                originalMessage={originalMessage}
+            {aiServiceResponse?.aiResponse && !isLoading && !error && (
+               <MessageDisplay
+                originalMessage="" // Original message is already shown above, no need to repeat in MessageDisplay
                 aiResponse={aiServiceResponse.aiResponse}
               />
-            )}
-
-            {originalMessage && !aiServiceResponse?.aiResponse && !isLoading && !error && !activeMessageId && (
-                 <Card className="shadow-lg rounded-xl overflow-hidden">
-                    <CardHeader className="bg-secondary/50">
-                        <CardTitle className="flex items-center text-lg font-headline text-secondary-foreground">
-                        <MessageSquareText className="mr-3 h-6 w-6 text-primary" />
-                        Your Message
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent className="p-6">
-                        <p className="text-foreground whitespace-pre-wrap">{originalMessage}</p>
-                    </CardContent>
-                </Card>
             )}
           </>
         )}

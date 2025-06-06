@@ -2,14 +2,16 @@
 "use client";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Bot, MessageSquareText } from "lucide-react"; // Changed Lightbulb to Bot
+import { Bot, MessageSquareText } from "lucide-react";
 
 interface MessageDisplayProps {
-  originalMessage: string;
+  originalMessage?: string; // Made optional, as it might be displayed separately
   aiResponse?: string;
 }
 
 export default function MessageDisplay({ originalMessage, aiResponse }: MessageDisplayProps) {
+  // If only aiResponse is provided, just show that.
+  // If originalMessage is also provided (e.g. for a future context where it's not shown separately), include it.
   if (!originalMessage && !aiResponse) return null;
 
   return (
