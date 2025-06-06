@@ -34,8 +34,8 @@ export default function Home() {
   useEffect(() => {
     let unsubscribe: Unsubscribe | undefined;
 
-    if (activeMessageId && user) {
-      setIsLoading(true); // Start loading when we have an active message ID to listen to
+    if (activeMessageId && user && db) {
+      setIsLoading(true); 
       const docRef = doc(db, "user_messages", activeMessageId);
       unsubscribe = onSnapshot(
         docRef,
@@ -44,18 +44,19 @@ export default function Home() {
             const data = docSnap.data();
             if (data.response_text) {
               setAiServiceResponse({ aiResponse: data.response_text });
-              setError(null); // Clear previous errors
-              setIsLoading(false); // Stop loading once response is received
-              setActiveMessageId(null); // Clear active message ID as we got the response
+              setOriginalMessage(data.message_text || originalMessage); // Ensure original message is also loaded
+              setError(null); 
+              setIsLoading(false); 
+              setActiveMessageId(null); 
               toast({ title: "Success", description: "AI response received." });
-            } else if (data.error_message) { // Optional: Handle errors from Firebase Function
+            } else if (data.error_message) { 
               setError(data.error_message);
+              setOriginalMessage(data.message_text || originalMessage);
               setAiServiceResponse(null);
               setIsLoading(false);
               setActiveMessageId(null);
               toast({ title: "AI Error", description: data.error_message, variant: "destructive" });
             }
-            // If response_text is not yet there, isLoading remains true
           } else {
             setError("Message document not found after sending.");
             setIsLoading(false);
@@ -77,7 +78,7 @@ export default function Home() {
         unsubscribe();
       }
     };
-  }, [activeMessageId, user, toast]);
+  }, [activeMessageId, user, toast, db, originalMessage]);
 
   const submitMessage = async (message: string) => {
     if (!user) {
@@ -85,22 +86,29 @@ export default function Home() {
       return;
     }
     
-    // Clear previous states before new submission
     setOriginalMessage(message);
     setAiServiceResponse(null); 
     setError(null);
-    setActiveMessageId(null); // Clear any previous active listener
-    setIsLoading(true); // Set loading true immediately on submit
+    setActiveMessageId(null);
+    setIsLoading(true);
 
-    const result = await handleSendMessage(user.uid, message);
+    try {
+      const result = await handleSendMessage(user.uid, message);
 
-    if (result.success && result.docId) {
-      setActiveMessageId(result.docId);
-      // isLoading remains true, listener will set it to false or handle error
-    } else {
-      setError(result.error || "Failed to send message.");
-      toast({ title: "Error", description: result.error || "Could not send message.", variant: "destructive" });
-      setIsLoading(false); // Stop loading if initial send fails
+      if (result && result.success && result.docId) {
+        setActiveMessageId(result.docId);
+      } else {
+        const errorMessage = result?.error || "Failed to send message. Unexpected response from server.";
+        setError(errorMessage);
+        toast({ title: "Error", description: errorMessage, variant: "destructive" });
+        setIsLoading(false); 
+      }
+    } catch (e: any) {
+      console.error("Error in submitMessage calling handleSendMessage:", e);
+      const errorMessage = e.message || "An unexpected error occurred while sending the message.";
+      setError(errorMessage);
+      toast({ title: "Submission Error", description: errorMessage, variant: "destructive" });
+      setIsLoading(false);
     }
   };
 
@@ -169,15 +177,14 @@ export default function Home() {
           <>
             <MessageForm userId={user.uid} onSubmit={submitMessage} isLoading={isLoading} />
             
-            {error && !isLoading && ( // Only show general error if not loading
+            {error && !isLoading && ( 
               <Alert variant="destructive" className="shadow-md">
                 <AlertCircle className="h-4 w-4" />
                 <AlertTitle>Error</AlertTitle>
                 <AlertDescription>{error}</AlertDescription>
               </Alert>
             )}
-
-            {/* Display Original Message when it's sent and we are waiting */}
+            
             {originalMessage && isLoading && (
               <Card className="shadow-lg rounded-xl overflow-hidden">
                 <CardHeader className="bg-secondary/50">
@@ -192,7 +199,6 @@ export default function Home() {
               </Card>
             )}
             
-            {/* Display AI Thinking card */}
             {isLoading && (
                <Card className="shadow-lg rounded-xl overflow-hidden border-accent">
                   <CardHeader className="bg-accent/20">
@@ -209,7 +215,6 @@ export default function Home() {
                 </Card>
             )}
             
-            {/* Display MessageDisplay component when AI response is available and not loading */}
             {originalMessage && aiServiceResponse?.aiResponse && !isLoading && (
                <MessageDisplay 
                 originalMessage={originalMessage}
@@ -217,8 +222,7 @@ export default function Home() {
               />
             )}
 
-            {/* Display original message only if not loading and no AI response yet, but message was sent AND there's no error */}
-            {originalMessage && !aiServiceResponse?.aiResponse && !isLoading && !error && (
+            {originalMessage && !aiServiceResponse?.aiResponse && !isLoading && !error && !activeMessageId && (
                  <Card className="shadow-lg rounded-xl overflow-hidden">
                     <CardHeader className="bg-secondary/50">
                         <CardTitle className="flex items-center text-lg font-headline text-secondary-foreground">
@@ -242,3 +246,4 @@ export default function Home() {
     </div>
   );
 }
+
