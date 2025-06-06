@@ -19,24 +19,36 @@ export default function SignInButton() {
         description: "Successfully signed in with Google.",
       });
     } catch (error: any) {
-      console.error("Error signing in with Google: ", error);
+      console.error("Error signing in with Google: ", error, error.code);
       if (error.code === 'auth/popup-closed-by-user') {
         toast({
           title: "Sign In Cancelled",
-          description: "The sign-in process was cancelled.",
-          variant: "default", 
+          description: "The Google sign-in popup was closed before completion.",
+          variant: "default",
         });
       } else if (error.code === 'auth/cancelled-popup-request') {
         toast({
-          title: "Sign In Cancelled",
-          description: "Multiple sign-in attempts detected. Previous attempt cancelled.",
+          title: "Sign In Interrupted",
+          description: "The sign-in attempt was interrupted, possibly by a new sign-in request.",
           variant: "default",
         });
+      } else if (error.code === 'auth/popup-blocked') {
+        toast({
+          title: "Sign In Blocked",
+          description: "The sign-in popup was blocked by your browser. Please allow popups for this site.",
+          variant: "destructive",
+        });
+      } else if (error.code === 'auth/unauthorized-domain') {
+          toast({
+            title: "Sign In Error",
+            description: "This domain is not authorized for Google Sign-In. Please check your Firebase project's 'Authorized domains' settings.",
+            variant: "destructive",
+          });
       }
       else {
         toast({
           title: "Sign In Failed",
-          description: error.message || "Could not sign in with Google. Please try again.",
+          description: `An error occurred: ${error.message || "Could not sign in with Google. Please try again."}`,
           variant: "destructive",
         });
       }
