@@ -10,21 +10,20 @@ import MessageForm from "@/components/MessageForm";
 import MessageDisplay from "@/components/MessageDisplay";
 import { handleSendMessage } from "./actions";
 import { Skeleton } from "@/components/ui/skeleton";
-import { AlertCircle, Loader2, MessageSquareText } from "lucide-react";
+import { AlertCircle, Loader2, MessageSquareText, Bot } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import Image from "next/image";
 
 interface AIResponseState {
-  editedMessage?: string;
-  explanation?: string;
+  aiResponse?: string;
 }
 
 export default function Home() {
   const { user, isLoading: authLoading, error: authError } = useAuth();
   const [originalMessage, setOriginalMessage] = useState<string>("");
-  const [aiResponse, setAiResponse] = useState<AIResponseState | null>(null);
+  const [aiServiceResponse, setAiServiceResponse] = useState<AIResponseState | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
@@ -37,16 +36,16 @@ export default function Home() {
     setIsLoading(true);
     setError(null);
     setOriginalMessage(message);
-    setAiResponse(null);
+    setAiServiceResponse(null); // Clear previous AI response
 
     const result = await handleSendMessage(user.uid, message);
 
     if ("error" in result) {
       setError(result.error);
       toast({ title: "Error", description: result.error, variant: "destructive" });
-      setAiResponse(null);
+      setAiServiceResponse(null);
     } else {
-      setAiResponse(result);
+      setAiServiceResponse({ aiResponse: result.aiResponse });
       toast({ title: "Success", description: "AI response received." });
     }
     setIsLoading(false);
@@ -106,10 +105,10 @@ export default function Home() {
       <main className="w-full max-w-2xl space-y-8">
         {!user ? (
           <div className="flex flex-col items-center justify-center p-10 bg-card rounded-xl shadow-xl border text-center">
-            <Image src="https://i.ebayimg.com/images/g/9FoAAOSw0dFcmo1c/s-l1200.jpg" alt="Batman illustration" width={300} height={200} className="rounded-lg mb-6 shadow-md" />
+            <Image src="https://i.ebayimg.com/images/g/9FoAAOSw0dFcmo1c/s-l1200.jpg" alt="Batman illustration" width={300} height={200} className="rounded-lg mb-6 shadow-md" data-ai-hint="batman illustration" />
             <h2 className="text-2xl font-semibold mb-3 text-foreground font-headline">Welcome!</h2>
             <p className="text-muted-foreground mb-6">
-              Sign in to get AI-powered suggestions and improvements for your messages.
+              Sign in to get AI-powered responses for your messages.
             </p>
             <SignInButton />
           </div>
@@ -125,7 +124,7 @@ export default function Home() {
               </Alert>
             )}
 
-            {isLoading && originalMessage && !aiResponse && (
+            {isLoading && originalMessage && !aiServiceResponse && (
               <Card className="shadow-lg rounded-xl overflow-hidden">
                 <CardHeader className="bg-secondary/50">
                   <CardTitle className="flex items-center text-lg font-headline text-secondary-foreground">
@@ -155,12 +154,26 @@ export default function Home() {
                 </Card>
             )}
             
-            {!isLoading && (originalMessage || aiResponse) && (
+            {originalMessage && !isLoading && aiServiceResponse?.aiResponse && (
                <MessageDisplay 
                 originalMessage={originalMessage}
-                aiEditedMessage={aiResponse?.editedMessage}
-                aiExplanation={aiResponse?.explanation}
+                aiResponse={aiServiceResponse.aiResponse}
               />
+            )}
+
+            {/* Display original message only if not loading and no AI response yet, but message was sent */}
+            {originalMessage && !isLoading && !aiServiceResponse?.aiResponse && !error && (
+                 <Card className="shadow-lg rounded-xl overflow-hidden">
+                    <CardHeader className="bg-secondary/50">
+                        <CardTitle className="flex items-center text-lg font-headline text-secondary-foreground">
+                        <MessageSquareText className="mr-3 h-6 w-6 text-primary" />
+                        Your Message
+                        </CardTitle>
+                    </CardHeader>
+                    <CardContent className="p-6">
+                        <p className="text-foreground whitespace-pre-wrap">{originalMessage}</p>
+                    </CardContent>
+                </Card>
             )}
           </>
         )}

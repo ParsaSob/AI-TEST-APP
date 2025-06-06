@@ -1,18 +1,18 @@
+
 "use server";
 
-import { suggestMessageEdits, type SuggestMessageEditsOutput } from "@/ai/flows/suggest-message-edits";
+import { generateAiResponse, type GenerateAiResponseOutput } from "@/ai/flows/generate-ai-response-flow";
 import { db } from "@/lib/firebase";
 import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 
-interface AIResponse {
-  editedMessage: string;
-  explanation: string;
+interface AIResponseData {
+  aiResponse: string;
 }
 
 export async function handleSendMessage(
   userId: string,
   originalMessage: string
-): Promise<AIResponse | { error: string }> {
+): Promise<AIResponseData | { error: string }> {
   if (!userId) {
     return { error: "User not authenticated." };
   }
@@ -21,27 +21,24 @@ export async function handleSendMessage(
   }
 
   try {
-    const aiResult: SuggestMessageEditsOutput = await suggestMessageEdits({ message: originalMessage });
+    const aiResult: GenerateAiResponseOutput = await generateAiResponse({ message: originalMessage });
 
-    if (!aiResult || !aiResult.editedMessage) {
+    if (!aiResult || !aiResult.response) {
       return { error: "AI failed to generate a response." };
     }
     
     await addDoc(collection(db, "messages"), {
       userId,
       originalMessage,
-      aiEditedMessage: aiResult.editedMessage,
-      aiExplanation: aiResult.explanation,
+      aiResponse: aiResult.response,
       timestamp: serverTimestamp(),
     });
 
     return {
-      editedMessage: aiResult.editedMessage,
-      explanation: aiResult.explanation,
+      aiResponse: aiResult.response,
     };
   } catch (error) {
     console.error("Error handling message:", error);
-    // Check if error is an instance of Error and has a message property
     const errorMessage = error instanceof Error ? error.message : "An unknown error occurred while processing your message.";
     return { error: `Failed to process message: ${errorMessage}` };
   }

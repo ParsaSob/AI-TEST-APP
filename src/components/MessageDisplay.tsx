@@ -1,17 +1,16 @@
+
 "use client";
 
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
-import { Lightbulb, MessageSquareText } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Bot, MessageSquareText } from "lucide-react"; // Changed Lightbulb to Bot
 
 interface MessageDisplayProps {
   originalMessage: string;
-  aiEditedMessage?: string;
-  aiExplanation?: string;
+  aiResponse?: string;
 }
 
-export default function MessageDisplay({ originalMessage, aiEditedMessage, aiExplanation }: MessageDisplayProps) {
-  if (!originalMessage && !aiEditedMessage) return null;
+export default function MessageDisplay({ originalMessage, aiResponse }: MessageDisplayProps) {
+  if (!originalMessage && !aiResponse) return null;
 
   return (
     <div className="w-full space-y-6">
@@ -29,28 +28,18 @@ export default function MessageDisplay({ originalMessage, aiEditedMessage, aiExp
         </Card>
       )}
 
-      {aiEditedMessage && (
+      {aiResponse && (
         <Card className="shadow-lg rounded-xl overflow-hidden border-accent">
           <CardHeader className="bg-accent/20">
             <CardTitle className="flex items-center text-lg font-headline text-accent-foreground">
-              <Lightbulb className="mr-3 h-6 w-6 text-accent" />
-              AI Suggestion
+              <Bot className="mr-3 h-6 w-6 text-accent" />
+              AI Response
             </CardTitle>
           </CardHeader>
           <CardContent className="p-6 space-y-4">
             <div>
-              <h3 className="font-semibold text-foreground mb-1">Suggested Edit:</h3>
-              <p className="text-foreground whitespace-pre-wrap bg-background p-3 rounded-md border">{aiEditedMessage}</p>
+              <p className="text-foreground whitespace-pre-wrap bg-background p-3 rounded-md border">{aiResponse}</p>
             </div>
-            {aiExplanation && (
-              <>
-                <Separator />
-                <div>
-                  <h3 className="font-semibold text-foreground mb-1">Explanation:</h3>
-                  <p className="text-muted-foreground whitespace-pre-wrap">{aiExplanation}</p>
-                </div>
-              </>
-            )}
           </CardContent>
         </Card>
       )}
