@@ -1,3 +1,4 @@
+
 import * as functions from "firebase-functions";
 import * as admin from "firebase-admin";
 import axios from "axios";
@@ -41,6 +42,7 @@ exports.processMessage = functions.firestore
     } catch (error: any) {
       functions.logger.error(`[docId: ${docId}] Error processing message and getting AI response:`, error);
       const errorMessage = error instanceof Error ? error.message : String(error);
+      functions.logger.info(`[docId: ${docId}] Attempting to update Firestore with error message: "${errorMessage}"`);
       try {
         await snap.ref.update({
           error_message: "Failed to get AI response. Details: " + errorMessage

@@ -34,7 +34,7 @@ export default function Home() {
   const resetStateForNewMessage = useCallback(() => {
     setAiServiceResponse(null);
     setError(null);
-    setActiveMessageId(null); // Clear previous active message ID
+    setActiveMessageId(null); 
   }, []);
 
   useEffect(() => {
@@ -42,7 +42,7 @@ export default function Home() {
 
     if (activeMessageId && user && db) {
       console.log(`[PageEffect] Listening to Firestore doc: user_messages/${activeMessageId}`);
-      setIsLoading(true); // Ensure loading is true when listener is active
+      setIsLoading(true); 
       const docRef = doc(db, "user_messages", activeMessageId);
       unsubscribe = onSnapshot(
         docRef,
@@ -51,34 +51,32 @@ export default function Home() {
           if (docSnap.exists()) {
             const data = docSnap.data();
             console.log("[PageEffect] Document data:", data);
-            // Ensure originalMessage is up-to-date from the snapshot if needed,
-            // though it should primarily be set by submitMessage
-            setOriginalMessage(data.message_text || originalMessage);
+            
+            setOriginalMessage(data.message_text || ""); // Keep original message updated from snapshot if needed
 
             if (data.response_text) {
               console.log("[PageEffect] AI response_text found:", data.response_text);
               setAiServiceResponse({ aiResponse: data.response_text });
               setError(null);
               setIsLoading(false);
-              setActiveMessageId(null); // Stop listening for this message
+              setActiveMessageId(null); 
               toast({ title: "Success", description: "AI response received." });
             } else if (data.error_message) {
               console.warn("[PageEffect] AI error_message found:", data.error_message);
               setError(data.error_message);
               setAiServiceResponse(null);
               setIsLoading(false);
-              setActiveMessageId(null); // Stop listening for this message
+              setActiveMessageId(null); 
               toast({ title: "AI Error", description: data.error_message, variant: "destructive" });
             } else {
               console.log("[PageEffect] Document exists but no response_text or error_message yet. Still loading.");
-              // If neither is present, isLoading remains true, waiting for Function update
             }
           } else {
             console.warn(`[PageEffect] Message document user_messages/${activeMessageId} not found after sending.`);
             setError("Message document not found after sending. It might have been deleted or the ID is incorrect.");
             setAiServiceResponse(null);
             setIsLoading(false);
-            setActiveMessageId(null); // Stop listening
+            setActiveMessageId(null); 
           }
         },
         (err) => {
@@ -86,7 +84,7 @@ export default function Home() {
           setError("Failed to listen for AI response due to a listener error.");
           setAiServiceResponse(null);
           setIsLoading(false);
-          setActiveMessageId(null); // Stop listening
+          setActiveMessageId(null); 
           toast({ title: "Listener Error", description: "Could not listen for AI response updates.", variant: "destructive" });
         }
       );
@@ -102,7 +100,7 @@ export default function Home() {
         unsubscribe();
       }
     };
-  }, [activeMessageId, user, db, toast, originalMessage]); // originalMessage is included because it's used in setOriginalMessage, can be optimized if strictly not needed
+  }, [activeMessageId, user, db, toast]); // Removed originalMessage from deps
 
   const submitMessage = async (message: string) => {
     if (!user) {
@@ -112,8 +110,8 @@ export default function Home() {
 
     console.log("[PageSubmit] submitMessage called with message:", message);
     resetStateForNewMessage();
-    setOriginalMessage(message); // Set the current original message
-    setIsLoading(true); // Set loading to true before async operation
+    setOriginalMessage(message); 
+    setIsLoading(true); 
 
     try {
       console.log("[PageSubmit] Calling handleSendMessage action...");
@@ -123,20 +121,19 @@ export default function Home() {
       if (result && result.success && result.docId) {
         console.log(`[PageSubmit] handleSendMessage successful. Setting activeMessageId to: ${result.docId}`);
         setActiveMessageId(result.docId);
-        // isLoading remains true, useEffect will handle further state based on listener
       } else {
         const errorMessage = result?.error || "Failed to send message. Unexpected response from server action.";
         console.error("[PageSubmit] handleSendMessage failed or returned unexpected result:", errorMessage, result);
         setError(errorMessage);
         toast({ title: "Message Send Error", description: errorMessage, variant: "destructive" });
-        setIsLoading(false); // Crucial: set isLoading to false on failure
+        setIsLoading(false); 
       }
     } catch (e: any) {
       console.error("[PageSubmit] Critical error calling handleSendMessage:", e);
       const errorMessage = e.message || "An unexpected client-side error occurred while sending the message.";
       setError(errorMessage);
       toast({ title: "Submission Error", description: errorMessage, variant: "destructive" });
-      setIsLoading(false); // Crucial: set isLoading to false on critical failure
+      setIsLoading(false); 
     }
   };
   
@@ -213,8 +210,7 @@ export default function Home() {
               </Alert>
             )}
             
-            {/* Display original message only if it exists and we are not in an error state *after* submission failed */}
-            {originalMessage && !error && (
+            {originalMessage && (!error || isLoading) && ( // Show original message if it exists and we are loading or no error has occurred
               <Card className="shadow-lg rounded-xl overflow-hidden">
                 <CardHeader className="bg-secondary/50">
                   <CardTitle className="flex items-center text-lg font-headline text-secondary-foreground">
@@ -246,7 +242,6 @@ export default function Home() {
             
             {aiServiceResponse?.aiResponse && !isLoading && !error && (
                <MessageDisplay
-                originalMessage="" // Original message is already shown above, no need to repeat in MessageDisplay
                 aiResponse={aiServiceResponse.aiResponse}
               />
             )}
@@ -261,4 +256,3 @@ export default function Home() {
     </div>
   );
 }
-
