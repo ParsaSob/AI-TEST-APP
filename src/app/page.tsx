@@ -32,6 +32,7 @@ export default function Home() {
   const [activeMessageId, setActiveMessageId] = useState<string | null>(null);
 
   const resetStateForNewMessage = useCallback(() => {
+    console.log("[PageReset] Resetting state for new message.");
     setAiServiceResponse(null);
     setError(null);
     setActiveMessageId(null); 
@@ -41,8 +42,7 @@ export default function Home() {
     let unsubscribe: Unsubscribe | undefined;
 
     if (activeMessageId && user && db) {
-      console.log(`[PageEffect] Listening to Firestore doc: user_messages/${activeMessageId}`);
-      setIsLoading(true); 
+      console.log(`[PageEffect] Attempting to set up Firestore listener for doc: user_messages/${activeMessageId}`);
       const docRef = doc(db, "user_messages", activeMessageId);
       unsubscribe = onSnapshot(
         docRef,
@@ -50,9 +50,12 @@ export default function Home() {
           console.log(`[PageEffect] Snapshot received for user_messages/${activeMessageId}. Exists: ${docSnap.exists()}`);
           if (docSnap.exists()) {
             const data = docSnap.data();
-            console.log("[PageEffect] Document data:", data);
+            console.log("[PageEffect] Document data:", JSON.stringify(data, null, 2));
             
-            setOriginalMessage(data.message_text || ""); // Keep original message updated from snapshot if needed
+            if (data.message_text && !originalMessage) {
+                console.log("[PageEffect] Original message was not set locally, setting from snapshot.");
+                setOriginalMessage(data.message_text);
+            }
 
             if (data.response_text) {
               console.log("[PageEffect] AI response_text found:", data.response_text);
@@ -69,11 +72,15 @@ export default function Home() {
               setActiveMessageId(null); 
               toast({ title: "AI Error", description: data.error_message, variant: "destructive" });
             } else {
-              console.log("[PageEffect] Document exists but no response_text or error_message yet. Still loading.");
+              console.log("[PageEffect] Document exists but no response_text or error_message yet. Still loading/waiting for Function.");
+              if(!isLoading) {
+                console.log("[PageEffect] isLoading was false, setting to true as we are waiting for function.");
+                setIsLoading(true);
+              }
             }
           } else {
-            console.warn(`[PageEffect] Message document user_messages/${activeMessageId} not found after sending.`);
-            setError("Message document not found after sending. It might have been deleted or the ID is incorrect.");
+            console.warn(`[PageEffect] Message document user_messages/${activeMessageId} not found after sending. This could mean it was deleted or listener is on wrong ID.`);
+            setError("Message document not found. It might have been deleted or there was an issue.");
             setAiServiceResponse(null);
             setIsLoading(false);
             setActiveMessageId(null); 
@@ -81,7 +88,7 @@ export default function Home() {
         },
         (err) => {
           console.error(`[PageEffect] Error listening to Firestore document user_messages/${activeMessageId}:`, err);
-          setError("Failed to listen for AI response due to a listener error.");
+          setError("Failed to listen for AI response due to a Firestore listener error.");
           setAiServiceResponse(null);
           setIsLoading(false);
           setActiveMessageId(null); 
@@ -89,18 +96,18 @@ export default function Home() {
         }
       );
     } else {
-      if (activeMessageId) {
-         console.log("[PageEffect] Not attaching listener because user or db is missing, or activeMessageId is null after trying to set.");
+      if (activeMessageId) { 
+         console.log(`[PageEffect] Conditions not met to set up listener for activeMessageId: ${activeMessageId}. User: ${!!user}, DB: ${!!db}`);
       }
     }
 
     return () => {
       if (unsubscribe) {
-        console.log(`[PageEffect] Unsubscribing from Firestore listener for user_messages/${activeMessageId}`);
+        console.log(`[PageEffect] Unsubscribing from Firestore listener for user_messages/${activeMessageId} (or previous activeMessageId if it changed).`);
         unsubscribe();
       }
     };
-  }, [activeMessageId, user, db, toast]); // Removed originalMessage from deps
+  }, [activeMessageId, user, toast, db, isLoading, originalMessage]); // Added db, isLoading, originalMessage to deps for completeness, though their change leading to re-subscription needs care.
 
   const submitMessage = async (message: string) => {
     if (!user) {
@@ -109,31 +116,35 @@ export default function Home() {
     }
 
     console.log("[PageSubmit] submitMessage called with message:", message);
-    resetStateForNewMessage();
+    resetStateForNewMessage(); 
     setOriginalMessage(message); 
     setIsLoading(true); 
+    console.log("[PageSubmit] State reset. isLoading is now true.");
 
     try {
       console.log("[PageSubmit] Calling handleSendMessage action...");
       const result = await handleSendMessage(user.uid, message);
-      console.log("[PageSubmit] handleSendMessage result:", result);
+      console.log("[PageSubmit] handleSendMessage action result:", result);
 
       if (result && result.success && result.docId) {
-        console.log(`[PageSubmit] handleSendMessage successful. Setting activeMessageId to: ${result.docId}`);
+        console.log(`[PageSubmit] handleSendMessage successful. Will now listen to docId: ${result.docId}`);
         setActiveMessageId(result.docId);
+        // isLoading remains true, listener effect will handle it or errors.
       } else {
         const errorMessage = result?.error || "Failed to send message. Unexpected response from server action.";
         console.error("[PageSubmit] handleSendMessage failed or returned unexpected result:", errorMessage, result);
         setError(errorMessage);
         toast({ title: "Message Send Error", description: errorMessage, variant: "destructive" });
         setIsLoading(false); 
+        console.log("[PageSubmit] Error from handleSendMessage. isLoading is now false.");
       }
     } catch (e: any) {
-      console.error("[PageSubmit] Critical error calling handleSendMessage:", e);
+      console.error("[PageSubmit] Critical error during handleSendMessage call:", e);
       const errorMessage = e.message || "An unexpected client-side error occurred while sending the message.";
       setError(errorMessage);
       toast({ title: "Submission Error", description: errorMessage, variant: "destructive" });
       setIsLoading(false); 
+      console.log("[PageSubmit] Exception during handleSendMessage. isLoading is now false.");
     }
   };
   
@@ -210,7 +221,7 @@ export default function Home() {
               </Alert>
             )}
             
-            {originalMessage && (!error || isLoading) && ( // Show original message if it exists and we are loading or no error has occurred
+            {originalMessage && (!error || isLoading) && ( 
               <Card className="shadow-lg rounded-xl overflow-hidden">
                 <CardHeader className="bg-secondary/50">
                   <CardTitle className="flex items-center text-lg font-headline text-secondary-foreground">
