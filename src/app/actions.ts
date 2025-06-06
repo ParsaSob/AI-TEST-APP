@@ -27,10 +27,10 @@ export async function handleSendMessage(
       return { error: "AI failed to generate a response." };
     }
     
-    await addDoc(collection(db, "messages"), {
-      userId,
-      originalMessage,
-      aiResponse: aiResult.response,
+    await addDoc(collection(db, "user_messages"), { // Changed collection name
+      user_id: userId,                            // Changed field name
+      message_text: originalMessage,              // Changed field name
+      response_text: aiResult.response,           // Changed field name
       timestamp: serverTimestamp(),
     });
 
@@ -43,3 +43,4 @@ export async function handleSendMessage(
     return { error: `Failed to process message: ${errorMessage}` };
   }
 }
+
