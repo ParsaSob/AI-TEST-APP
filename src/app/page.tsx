@@ -14,7 +14,7 @@ import { AlertCircle, Loader2, MessageSquareText } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import Image from "next/image";
+import Image from "next/image"; // Will be removed if not used after sign-in block removal
 
 interface AIResponseState {
   aiResponse?: string;
@@ -78,11 +78,9 @@ export default function Home() {
   if (authLoading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen p-4 bg-background">
-        <div className="w-full max-w-md space-y-6">
-          <Skeleton className="h-12 w-full rounded-lg" />
-          <Skeleton className="h-24 w-full rounded-lg" />
-          <Skeleton className="h-10 w-1/2 mx-auto rounded-lg" />
-        </div>
+        <Skeleton className="h-12 w-full max-w-md rounded-lg mb-4" />
+        <Skeleton className="h-24 w-full max-w-md rounded-lg mb-4" />
+        <Skeleton className="h-10 w-1/2 mx-auto max-w-md rounded-lg" />
       </div>
     );
   }
@@ -102,12 +100,10 @@ export default function Home() {
   }
 
   return (
-    <div className="flex flex-col items-center min-h-screen p-4 sm:p-6 md:p-8 bg-background font-body selection:bg-primary/20 selection:text-primary-foreground">
-      <header className="w-full max-w-2xl mb-8 grid grid-cols-[1fr_auto_min-content] items-start gap-x-4">
-        <div>
-          {/* Empty spacer column */}
-        </div>
-        <div className="flex flex-col items-center justify-self-center">
+    <div className="flex flex-col min-h-screen p-4 sm:p-6 md:p-8 bg-background font-body selection:bg-primary/20 selection:text-primary-foreground">
+      
+      <header className="w-full max-w-2xl mx-auto mb-8 pt-6">
+        <div className="flex flex-col items-center">
            <svg
             xmlns="http://www.w3.org/2000/svg"
             viewBox="0 0 24 24"
@@ -121,35 +117,10 @@ export default function Home() {
             AI Response App
           </h1>
         </div>
-        <div className="flex items-start space-x-4">
-          {user && (
-            <>
-              <UserAvatar user={user} />
-              <SignOutButton />
-            </>
-          )}
-        </div>
       </header>
 
-      <main className="w-full max-w-2xl space-y-8">
-        {!user ? (
-          <div className="flex flex-col items-center justify-center p-10 bg-card rounded-xl shadow-xl border text-center">
-            <Image 
-              src="https://easy-peasy.ai/cdn-cgi/image/quality=80,format=auto,width=700/https://media.easy-peasy.ai/08f66451-53e5-4d99-bf10-5a4f3b4ab1dd/2296e206-0fe3-48bb-89bd-776d3622b8e7.png" 
-              alt="Illustration of a dark silhouette head with a brightly lit, circuit-like brain" 
-              width={250} 
-              height={250} 
-              className="rounded-lg mb-6 shadow-md" 
-              data-ai-hint="AI brain" 
-              priority
-            />
-            <h2 className="text-2xl font-semibold mb-3 text-foreground font-headline">Welcome!</h2>
-            <p className="text-muted-foreground mb-6">
-              Sign in to get AI-powered responses for your messages.
-            </p>
-            <SignInButton />
-          </div>
-        ) : (
+      <main className="w-full max-w-2xl mx-auto space-y-8 flex-grow">
+        {user && (
           <>
             <MessageForm userId={user.uid} onSubmit={submitMessage} isLoading={isLoading} />
             
@@ -198,8 +169,30 @@ export default function Home() {
             )}
           </>
         )}
+         {!user && !authLoading && ( // Show prompt to sign in if not logged in and auth is done loading
+          <div className="flex flex-col items-center justify-center p-10 bg-card rounded-xl shadow-xl border text-center mt-8">
+            <MessageSquareText className="h-16 w-16 text-primary mb-4" />
+            <h2 className="text-2xl font-semibold mb-3 text-foreground font-headline">Send a Message</h2>
+            <p className="text-muted-foreground mb-6">
+              Sign in to send messages and get AI-powered responses.
+            </p>
+            {/* SignInButton is now in the fixed bottom-left section */}
+          </div>
+        )}
       </main>
-      <footer className="w-full max-w-2xl mt-12 text-center">
+
+      <div className="fixed bottom-6 left-6 z-10">
+        {user ? (
+          <div className="flex items-center space-x-3 bg-card text-card-foreground p-3 rounded-lg shadow-md border border-border">
+            <UserAvatar user={user} />
+            <SignOutButton />
+          </div>
+        ) : (
+          !authLoading && <SignInButton /> // Show SignInButton only if not loading auth
+        )}
+      </div>
+      
+      <footer className="w-full max-w-2xl mx-auto mt-auto pt-8 pb-6 text-center">
         <p className="text-sm text-muted-foreground">
           &copy; {new Date().getFullYear()} AI Response App. Enhance your communication.
         </p>
@@ -207,4 +200,3 @@ export default function Home() {
     </div>
   );
 }
-
