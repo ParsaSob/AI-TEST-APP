@@ -1,9 +1,15 @@
-# Firebase Studio
+# Firebase + AI Mini App
 
-This is a NextJS starter in Firebase Studio.
+A small web app built with Firebase for the Junior Developer Assessment. Users can sign in with Google, submit a text message, and receive an AI-generated response using the Google Gemini API.
 
-To get started, take a look at src/app/page.tsx.
+## Setup
+1. Clone the repository: `git clone https://github.com/ParsaSob/AI-TEST-APP.git`
+2. Install dependencies: `cd functions && npm install`
+3. Set Gemini API key: `firebase functions:config:set gemini.apikey="your-api-key"`
+4. Deploy: `firebase deploy --only functions,hosting`
 
-I developed the AI Response App as a Next.js project using React for the user interface, with Tailwind CSS and ShadCN UI for styling and UI components. Users authenticate through Google Sign-In via Firebase Authentication to securely access the app. When a user submits a message, the input is handled by a Next.js Server Action (handleSendMessage), which triggers a Genkit flow (generateAiResponseFlow) that integrates with the Google Gemini API to generate a relevant AI response.
-
-The original message, AI-generated reply, user ID, and timestamp are stored in the user_messages collection in Firestore. I used Firebase Functions to manage AI API calls and database operations securely on the backend. The app is deployed with Firebase Hosting, and I iteratively refined the layout, colors, and UI structure based on feedback. This project showcases my ability to integrate Firebase services, external AI tools, and modern frontend technologies into a complete, functional web application.
+## Features
+- Google Sign-In with Firebase Authentication
+- Firestore for storing user messages and AI responses
+- Firebase Functions for backend logic and Gemini API integration
+- Firebase Hosting for frontend deployment
